@@ -37,6 +37,11 @@ To find your plugins directory...
 
 * **0.1** - Initial commit.
 
+# To-Do
+
+1. Sketch 51 support (just haven't tested there yet, might already work if restriction removed)
+2. Swap all styles from document to library in one go
+
 # Contact
 
 <a class="twitter-follow-button" href="https://twitter.com/sonburn">Follow @sonburn</a>
