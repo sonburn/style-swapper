@@ -1,0 +1,567 @@
+@import "MochaJSDelegate.js";
+
+var sketch = require("sketch"),
+	pluginName = "Style Swapper",
+	pluginIdentifier = "com.sonburn.sketchplugins.style-swapper",
+	debugMode = false;
+
+var documentData = MSDocument.currentDocument().documentData(),
+	layerStyles = getSharedStyles(documentData,0),
+	textStyles = getSharedStyles(documentData,1),
+	libraries = getLibraries();
+
+var swapStyles = function(context) {
+	if (sketch.version.sketch < 52) {
+		sketch.UI.alert("Style Swapper","This plugin has a minimum requirement of Sketch 52.");
+		return;
+	}
+
+	if (!layerStyles.length && !textStyles.length) {
+		sketch.UI.alert("Style Swapper","This document has no styles to swap.");
+		return;
+	}
+
+	var alertWindow = createAlertWindow(context,"Swap Styles…","Swap selected styles from this document to selected library, using style name as matching identifier. All instances of swapped styles will be updated to reference selected library.");
+
+	var frameWidth = 300,
+		frameGutter = 15,
+		itemWidth = frameWidth - frameGutter,
+		itemHeight = 24,
+		itemsVisible = 6;
+
+	if (layerStyles.length) {
+		var layerStyleFrame = createScrollView(NSMakeRect(0,0,frameWidth,itemHeight*itemsVisible)),
+			layerStyleContent = createContentView(NSMakeRect(0,0,itemWidth,layerStyles.length*itemHeight)),
+			layerStyleCheckboxes = NSMutableArray.array(),
+			itemCount = 0;
+
+		var layerStyleCheckbox = createBoldCheckbox({name:layerStyles.length + " Layer Styles",value:1},1,NSMakeRect(0,0,300,18));
+
+		layerStyleCheckbox.setAction("callAction:");
+		layerStyleCheckbox.setCOSJSTargetFunction(function(sender) {
+			layerStyleCheckboxes.forEach(checkbox => checkbox.state = sender.state());
+		});
+
+		alertWindow.addAccessoryView(layerStyleCheckbox);
+
+		layerStyles.forEach(function(style) {
+			var layerStyle = createCheckbox({name:style.name(),value:1},1,NSMakeRect(0,itemHeight*itemCount,itemWidth,itemHeight));
+
+			layerStyleContent.addSubview(layerStyle);
+
+			layerStyleCheckboxes.push(layerStyle);
+
+			itemCount++;
+		});
+
+		layerStyleFrame.setDocumentView(layerStyleContent);
+
+		alertWindow.addAccessoryView(layerStyleFrame);
+	}
+
+	if (textStyles.length) {
+		if (layerStyles.length) {
+			alertWindow.addAccessoryView(createSpacer(NSMakeRect(0,0,300,4)));
+		}
+
+		var textStyleFrame = createScrollView(NSMakeRect(0,0,frameWidth,itemHeight*itemsVisible)),
+			textStyleContent = createContentView(NSMakeRect(0,0,itemWidth,textStyles.length*itemHeight)),
+			textStyleCheckboxes = NSMutableArray.array(),
+			itemCount = 0;
+
+		var textStyleCheckbox = createBoldCheckbox({name:textStyles.length + " Text Styles",value:1},1,NSMakeRect(0,0,300,18));
+
+		textStyleCheckbox.setAction("callAction:");
+		textStyleCheckbox.setCOSJSTargetFunction(function(sender) {
+			textStyleCheckboxes.forEach(checkbox => checkbox.state = sender.state());
+		});
+
+		alertWindow.addAccessoryView(textStyleCheckbox);
+
+		textStyles.forEach(function(style) {
+			var textStyle = createCheckbox({name:style.name(),value:1},1,NSMakeRect(0,itemHeight*itemCount,itemWidth,itemHeight));
+
+			textStyleContent.addSubview(textStyle);
+
+			textStyleCheckboxes.push(textStyle);
+
+			itemCount++;
+		});
+
+		textStyleFrame.setDocumentView(textStyleContent);
+
+		alertWindow.addAccessoryView(textStyleFrame);
+	}
+
+	alertWindow.addAccessoryView(createSpacer(NSMakeRect(0,0,300,4)));
+
+	var librarySelect = createSelect(libraries.valueForKey("name"),0,NSMakeRect(0,0,300,27));
+
+	librarySelect.insertItemWithObjectValue_atIndex("Swap to library…",0);
+	librarySelect.selectItemAtIndex(0);
+
+	var librarySelectDelegate = new MochaJSDelegate({
+		"comboBoxSelectionDidChange:" : (function() {
+			alertWindow.buttons().objectAtIndex(0).setEnabled((librarySelect.indexOfSelectedItem() != 0) ? 1 : 0);
+		})
+	});
+
+	librarySelect.setDelegate(librarySelectDelegate.getClassInstance());
+
+	alertWindow.addAccessoryView(librarySelect);
+
+	alertWindow.addAccessoryView(createSpacer(NSMakeRect(0,0,300,0)));
+
+	var copyStyles = createCheckbox({
+			name: "Copy unmatched styles to selected library",
+			value: 1
+		},1,NSMakeRect(0,0,300,16));
+
+	alertWindow.addAccessoryView(copyStyles);
+
+	var removeLocal = createCheckbox({
+			name: "Remove swapped styles from this document",
+			value: 1
+		},1,NSMakeRect(0,0,300,16));
+
+	alertWindow.addAccessoryView(removeLocal);
+
+	alertWindow.addButtonWithTitle("Swap");
+	alertWindow.addButtonWithTitle("Cancel");
+
+	alertWindow.buttons().objectAtIndex(0).setEnabled(0);
+
+	var responseCode = alertWindow.runModal();
+
+	if (responseCode == 1000) {
+		var selectedLibrary = libraries[librarySelect.indexOfSelectedItem() - 1], // Shifted to account for "Swap to library…"
+			selectedLibraryID = selectedLibrary.libraryID(),
+			selectedLibraryName = selectedLibrary.name(),
+			selectedLibraryPath = NSURL.fileURLWithPath(selectedLibrary.locationOnDisk().path());
+
+		var layerStylesToSwap = NSMutableArray.array(),
+			textStylesToSwap = NSMutableArray.array();
+
+		layerStyles.forEach(function(style,i){
+			if (layerStyleCheckboxes[i].state() == 1) layerStylesToSwap.addObject(style);
+		});
+
+		textStyles.forEach(function(style,i){
+			if (textStyleCheckboxes[i].state() == 1) textStylesToSwap.addObject(style);
+		});
+
+		if (!layerStylesToSwap.length && !textStylesToSwap.length) {
+			sketch.UI.alert("Style Swapper","No styles were selected to swap.");
+			return;
+		}
+
+		sketch.Document.open(selectedLibraryPath,(err,foreignLibrary) => {
+			if (err) {
+				sketch.UI.alert("Style Swapper","Unable to open the selected library file.");
+			}
+
+			if (foreignLibrary) {
+				if (layerStylesToSwap.length) {
+					var foreignLayerStyles = getSharedStyles(foreignLibrary._getMSDocumentData(),0),
+						foreignLayerStyleNames = [];
+
+					foreignLayerStyles.forEach(style => foreignLayerStyleNames.push(String(style.name())));
+
+					layerStylesToSwap.forEach(function(localLayerStyle){
+						var localLayerStyleName = String(localLayerStyle.name()),
+							foreignLayerStyle,
+							foreignLayerStyleNameMatches = 0;
+
+						foreignLayerStyleNames.forEach(function(name){
+							if (name == localLayerStyleName) foreignLayerStyleNameMatches++;
+						});
+
+						if (foreignLayerStyleNameMatches == 0 && copyStyles.state() == 1) {
+							foreignLayerStyle = sketch.SharedStyle.fromStyle({
+								name: localLayerStyle.name(),
+								style: localLayerStyle.style(),
+								document: foreignLibrary
+							});
+
+							foreignLibrary.save();
+
+							foreignLayerStyleNames.push(localLayerStyleName);
+
+							foreignLayerStyleNameMatches = 1;
+						}
+
+						if (foreignLayerStyleNameMatches > 1) {
+							var foreignLayerStyleNameMatches = 0;
+
+							foreignLayerStyles.forEach(function(style){
+								if (String(style.name()) == localLayerStyleName) {
+									if (!foreignLayerStyle || foreignLayerStyleNameMatches <= style.allInstances().length) {
+										foreignLayerStyle = style;
+										foreignLayerStyleNameMatches = style.allInstances().length;
+									}
+								}
+							});
+						} else {
+							foreignLayerStyles.forEach(function(style){
+								if (String(style.name()) == localLayerStyleName) foreignLayerStyle = style;
+							});
+						}
+
+						// var foreignLayerStyleReference = MSShareableObjectReference.referenceForShareableObject_inLibrary(foreignLayerStyle,selectedLibrary),
+						// 	foreignLayerStyle = AppController.sharedInstance().librariesController().importShareableObjectReference_intoDocument(foreignLayerStyleReference,documentData);
+						//
+						// localLayerStyle.allLayersInstances().forEach(function(instance){
+						// 	instance.setSharedStyle(foreignLayerStyle.localSharedStyle());
+						// });
+						//
+						// if (removeLocal.state() == 1) {
+						// 	if (!localLayerStyle.allLayersInstances()) {
+						// 		documentData.layerStyles().removeSharedStyle(localLayerStyle);
+						// 	}
+						// }
+					});
+				}
+
+				if (textStylesToSwap.length) {
+					// Do something...
+				}
+
+				log("All good in the hood")
+
+				foreignLibrary.close();
+			}
+		});
+
+		sketch.UI.message(layerStylesToSwap.length + " layer styles, and " + textStylesToSwap.length + " text styles were swapped to " + selectedLibraryName);
+	}
+}
+
+var swapSelection = function(context) {
+	if (sketch.version.sketch < 52) {
+		sketch.UI.alert("Style Swapper","This plugin has a minimum requirement of Sketch 52.");
+		return;
+	}
+
+	var document = sketch.getSelectedDocument(),
+		selection = document.selectedLayers;
+
+	if (!selection.length) {
+		sketch.UI.alert("Style Swapper","Nothing is selected.");
+		return;
+	}
+
+	if (selection.length > 1) {
+		sketch.UI.alert("Style Swapper","Select only one layer.");
+		return;
+	}
+
+	var selectedLayer = selection.layers[0],
+		selectedLayerType = (selectedLayer.type == "Text") ? 1 : 0,
+		selectedLayerStyle,
+		selectedLayerStyleLibrary,
+		selectedLibrary,
+		selectedLibraryPath,
+		foreignStyles;
+
+	if (!selectedLayer.sharedStyleId) {
+		sketch.UI.alert("Style Swapper","The selected layer has no shared style.");
+		return;
+	} else {
+		selectedLayerStyle = (selectedLayerType) ? document.getSharedTextStyleWithID(selectedLayer.sharedStyleId) : document.getSharedLayerStyleWithID(selectedLayer.sharedStyleId);
+		selectedLayerStyleLibrary = selectedLayerStyle.getLibrary();
+	}
+
+	var alertWindow = createAlertWindow(context,"Swap Styles of Selection…","Swap style of selection to a style within selected library.");
+
+	var librarySelect = createSelect(libraries.valueForKey("name"),0,NSMakeRect(0,0,300,27));
+
+	librarySelect.insertItemWithObjectValue_atIndex("Swap to library…",0);
+	librarySelect.selectItemAtIndex(0);
+
+	var librarySelectDelegate = new MochaJSDelegate({
+		"comboBoxSelectionDidChange:" : (function() {
+			if (librarySelect.indexOfSelectedItem() == 0) {
+				styleSelect.removeAllItems();
+				styleSelect.insertItemWithObjectValue_atIndex("Copy to library as new style…",0);
+				styleSelect.setEnabled(0);
+
+				alertWindow.buttons().objectAtIndex(0).setEnabled(0);
+			} else {
+				selectedLibrary = libraries[librarySelect.indexOfSelectedItem() - 1]; // Shifted to account for "Swap to library…"
+				selectedLibraryPath = NSURL.fileURLWithPath(selectedLibrary.locationOnDisk().path());
+
+				var selectedLibraryID = selectedLibrary.id,
+					selectedLibraryName = selectedLibrary.name;
+
+				sketch.Document.open(selectedLibraryPath,(err,foreignLibrary) => {
+					if (err) {
+						sketch.UI.alert("Style Swapper","Unable to open the selected library file.");
+					}
+
+					if (foreignLibrary) {
+						var selectedLayerStyleName = String(selectedLayerStyle.name),
+							foreignStyleNames = [];
+
+						foreignStyles = getSharedStyles(foreignLibrary._getMSDocumentData(),selectedLayerType);
+
+						foreignStyles.forEach(style => foreignStyleNames.push(String(style.name())));
+
+						styleSelect.removeAllItems();
+						styleSelect.insertItemWithObjectValue_atIndex("Copy to library as new style…",0);
+						styleSelect.addItemsWithObjectValues(foreignStyles.valueForKey("name"));
+
+						if (foreignStyleNames.indexOf(selectedLayerStyleName) != -1) {
+							styleSelect.selectItemAtIndex(foreignStyleNames.indexOf(selectedLayerStyleName) + 1); // Shifted to account for "Copy to library as new style…"
+						} else {
+							styleSelect.selectItemAtIndex(0);
+						}
+
+						styleSelect.setEnabled(1);
+
+						foreignLibrary.close();
+					}
+				});
+
+				alertWindow.buttons().objectAtIndex(0).setEnabled(1);
+			}
+		})
+	});
+
+	librarySelect.setDelegate(librarySelectDelegate.getClassInstance());
+
+	alertWindow.addAccessoryView(librarySelect);
+
+	var styleSelect = createSelect(["Copy to library as new style…"],0,NSMakeRect(0,0,300,27));
+
+	styleSelect.setEnabled(0);
+
+	alertWindow.addAccessoryView(styleSelect);
+
+	var includeInstances = createCheckbox({
+			name: "Swap all instances of the style in this document",
+			value: 1
+		},1,NSMakeRect(0,0,300,16));
+
+	alertWindow.addAccessoryView(includeInstances);
+
+	var removeStyle = createCheckbox({
+			name: "Remove the style from this document (if unused)",
+			value: 1
+		},1,NSMakeRect(0,0,300,16));
+
+	alertWindow.addAccessoryView(removeStyle);
+
+	alertWindow.addButtonWithTitle("Swap");
+	alertWindow.addButtonWithTitle("Cancel");
+
+	alertWindow.buttons().objectAtIndex(0).setEnabled(0);
+
+	var responseCode = alertWindow.runModal();
+
+	if (responseCode == 1000) {
+		var styleSelectIndex = styleSelect.indexOfSelectedItem(),
+			selectedForeignStyle;
+
+		if (styleSelectIndex == 0) {
+			sketch.Document.open(selectedLibraryPath,(err,foreignLibrary) => {
+				if (err) {
+					sketch.UI.alert("Style Swapper","Unable to open the selected library file.");
+				}
+
+				if (foreignLibrary) {
+					var newSharedStyle = sketch.SharedStyle.fromStyle({
+						name: selectedLayerStyle.name,
+						style: selectedLayerStyle.style,
+						document: foreignLibrary
+					});
+
+					foreignLibrary.save();
+					foreignLibrary.close();
+
+					foreignStyles = getSharedStyles(foreignLibrary._getMSDocumentData(),selectedLayerType);
+
+					var predicate = NSPredicate.predicateWithFormat("objectID == %@",newSharedStyle.id);
+
+					selectedForeignStyle = foreignStyles.filteredArrayUsingPredicate(predicate).firstObject();
+				}
+			});
+		} else {
+			selectedForeignStyle = foreignStyles.objectAtIndex(styleSelectIndex - 1); // Shifted to account for "Copy to library as new style…"
+		}
+
+		var foreignStyleReference = MSShareableObjectReference.referenceForShareableObject_inLibrary(selectedForeignStyle,selectedLibrary),
+			foreignStyle = AppController.sharedInstance().librariesController().importShareableObjectReference_intoDocument(foreignStyleReference,documentData);
+
+		if (includeInstances.state() == 1) {
+			selectedLayerStyle.getAllInstancesLayers().forEach(instance => instance.sharedStyle = foreignStyle.localSharedStyle()));
+		} else {
+			selectedLayer.sharedStyle = foreignStyle.localSharedStyle();
+		}
+
+		foreignStyle.localSharedStyle().resetReferencingInstances();
+
+		if (removeStyle.state() == 1 && !selectedLayerStyleLibrary) {
+			if (!selectedLayerStyle.getAllInstancesLayers().length) {
+				var styles = (selectedLayerType) ? documentData.layerTextStyles() : documentData.layerStyles();
+
+				if (styles.sharedStyleWithID) {
+					styles.removeSharedStyle(styles.sharedStyleWithID(selectedLayerStyle.id));
+				} else {
+					styles.removeSharedStyle(selectedLayerStyle);
+				}
+			}
+		}
+
+		context.document.reloadInspector();
+
+		sketch.UI.message("Style swapped successfully");
+	}
+}
+
+var report = function(context) {
+	openUrl("https://github.com/sonburn/style-swapper/issues/new");
+
+	if (!debugMode) googleAnalytics(context,"report","report");
+}
+
+var plugins = function(context) {
+	openUrl("https://sonburn.github.io/");
+
+	if (!debugMode) googleAnalytics(context,"plugins","plugins");
+}
+
+var donate = function(context) {
+	openUrl("https://www.paypal.me/sonburn");
+
+	if (!debugMode) googleAnalytics(context,"donate","donate");
+}
+
+function createAlertWindow(context,name,text) {
+	var alertWindow = COSAlertWindow.new();
+
+	var iconPath = context.plugin.urlForResourceNamed("icon.png").path(),
+		icon = NSImage.alloc().initByReferencingFile(iconPath);
+
+	alertWindow.setIcon(icon);
+	alertWindow.setMessageText(name);
+	(text) ? alertWindow.setInformativeText(text) : null;
+
+	return alertWindow;
+}
+
+function createBoldCheckbox(item,flag,frame) {
+	var checkbox = NSButton.alloc().initWithFrame(frame),
+		flag = (flag == false) ? NSOffState : NSOnState;
+
+	checkbox.setButtonType(NSSwitchButton);
+	checkbox.setBezelStyle(0);
+	checkbox.setTitle(item.name);
+	checkbox.setTag(item.value);
+	checkbox.setState(flag);
+	checkbox.setFont(NSFont.boldSystemFontOfSize(12));
+
+	return checkbox;
+}
+
+function createCheckbox(item,flag,frame) {
+	var checkbox = NSButton.alloc().initWithFrame(frame),
+		flag = (flag == false) ? NSOffState : NSOnState;
+
+	checkbox.setButtonType(NSSwitchButton);
+	checkbox.setBezelStyle(0);
+	checkbox.setTitle(item.name);
+	checkbox.setTag(item.value);
+	checkbox.setState(flag);
+
+	return checkbox;
+}
+
+function createContentView(frame) {
+	var view = NSView.alloc().initWithFrame(frame);
+
+	view.setFlipped(1);
+
+	return view;
+}
+
+function createScrollView(frame) {
+	var view = NSScrollView.alloc().initWithFrame(frame);
+
+	view.setHasVerticalScroller(1);
+
+	return view;
+}
+
+function createSelect(items,selectedItemIndex,frame) {
+	var comboBox = NSComboBox.alloc().initWithFrame(frame),
+		selectedItemIndex = (selectedItemIndex > -1) ? selectedItemIndex : 0;
+
+	comboBox.addItemsWithObjectValues(items);
+	comboBox.selectItemAtIndex(selectedItemIndex);
+	comboBox.setNumberOfVisibleItems(16);
+	comboBox.setCompletes(1);
+
+	return comboBox;
+}
+
+function createSpacer(frame) {
+	return NSView.alloc().initWithFrame(frame);
+}
+
+function getLibraries() {
+	var sortByName = NSSortDescriptor.sortDescriptorWithKey_ascending("name",1),
+		libraries = AppController.sharedInstance().librariesController().libraries().sortedArrayUsingDescriptors([sortByName]);
+
+	return libraries;
+}
+
+function getSharedStyles(source,type) {
+	var sortByName = NSSortDescriptor.sortDescriptorWithKey_ascending("name",1),
+		styles = (type == 0) ? source.layerStyles().objects().sortedArrayUsingDescriptors([sortByName]) : source.layerTextStyles().objects().sortedArrayUsingDescriptors([sortByName]);
+
+	return styles;
+}
+
+function googleAnalytics(context,category,action,label,value) {
+	var trackingID = "UA-127484133-1",
+		uuidKey = "google.analytics.uuid",
+		uuid = NSUserDefaults.standardUserDefaults().objectForKey(uuidKey);
+
+	if (!uuid) {
+		uuid = NSUUID.UUID().UUIDString();
+		NSUserDefaults.standardUserDefaults().setObject_forKey(uuid,uuidKey);
+	}
+
+	var url = "https://www.google-analytics.com/collect?v=1";
+	// Tracking ID
+	url += "&tid=" + trackingID;
+	// Source
+	url += "&ds=sketch" + MSApplicationMetadata.metadata().appVersion;
+	// Client ID
+	url += "&cid=" + uuid;
+	// pageview, screenview, event, transaction, item, social, exception, timing
+	url += "&t=event";
+	// App Name
+	url += "&an=" + encodeURI(context.plugin.name());
+	// App ID
+	url += "&aid=" + context.plugin.identifier();
+	// App Version
+	url += "&av=" + context.plugin.version();
+	// Event category
+	url += "&ec=" + encodeURI(category);
+	// Event action
+	url += "&ea=" + encodeURI(action);
+	// Event label
+	if (label) {
+		url += "&el=" + encodeURI(label);
+	}
+	// Event value
+	if (value) {
+		url += "&ev=" + encodeURI(value);
+	}
+
+	var session = NSURLSession.sharedSession(),
+		task = session.dataTaskWithURL(NSURL.URLWithString(NSString.stringWithString(url)));
+
+	task.resume();
+}

@@ -1,0 +1,55 @@
+{
+	"author" : "Jason Burns",
+	"commands" : [
+		{
+			"name" : "Swap Styles…",
+			"identifier" : "swapStyles",
+			"description" : "Swap styles from document to library.",
+			"script" : "script.cocoascript",
+			"handler" : "swapStyles"
+		},
+		{
+			"name" : "Swap Style of Selection…",
+			"identifier" : "swapSelection",
+			"description" : "Swap style of selection from this document to a library.",
+			"script" : "script.cocoascript",
+			"handler" : "swapSelection"
+		},
+		{
+			"name": "Report Issue",
+			"identifier": "report",
+			"script" : "script.cocoascript",
+			"handler": "report"
+		},
+		{
+			"name": "Other Plugins",
+			"identifier": "plugins",
+			"script" : "script.cocoascript",
+			"handler": "plugins"
+		},
+		{
+			"name": "Donate",
+			"identifier": "donate",
+			"script" : "script.cocoascript",
+			"handler": "donate"
+		}
+	],
+	"menu" : {
+		"title" : "Style Swapper",
+		"items" : [
+			"swapSelection",
+			"-",
+			"report",
+			"plugins",
+			"donate"
+		]
+	},
+	"identifier" : "com.sonburn.sketchplugins.style-swapper",
+	"version" : "0.1",
+	"description" : "Swap styles from document to library.",
+	"authorEmail" : "jason.burns@synchronoss.com",
+	"name" : "Style Swapper",
+	"icon" : "icon.png",
+	"appcast" : "https://raw.githubusercontent.com/sonburn/style-swapper/master/appcast.xml",
+	"homepage" : "https://github.com/sonburn/style-swapper"
+}
