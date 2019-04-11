@@ -1,42 +1,52 @@
 {
+	"name" : "Style Swapper",
+	"description" : "Swap styles from document to library.",
 	"author" : "Jason Burns",
+	"homepage" : "https://github.com/sonburn/style-swapper",
+	"version" : "0.1",
+	"identifier" : "com.sonburn.sketchplugins.style-swapper",
+	"appcast" : "https://raw.githubusercontent.com/sonburn/style-swapper/master/appcast.xml",
+	"icon" : "icon.png",
 	"commands" : [
 		{
 			"name" : "Swap Styles…",
 			"identifier" : "swapStyles",
-			"icon": "icon.png",
 			"description" : "Swap styles from document to library.",
+			"icon" : "icon.png",
 			"script" : "script.cocoascript",
 			"handler" : "swapStyles"
 		},
 		{
 			"name" : "Swap Style of Selection…",
 			"identifier" : "swapSelection",
-			"icon": "icon.png",
 			"description" : "Swap style of selection from this document to a library.",
+			"icon" : "icon.png",
 			"script" : "script.cocoascript",
 			"handler" : "swapSelection"
 		},
 		{
-			"name": "Report Issue",
-			"identifier": "report",
-			"icon": "icon.png",
+			"name" : "Report Issue",
+			"identifier" : "report",
+			"description" : "Report an issue with Style Swapper.",
+			"icon" : "icon.png",
 			"script" : "script.cocoascript",
-			"handler": "report"
+			"handler" : "report"
 		},
 		{
-			"name": "Other Plugins",
-			"identifier": "plugins",
-			"icon": "icon.png",
+			"name" : "Other Plugins",
+			"identifier" : "plugins",
+			"description" : "View all of Sonburn's plugins.",
+			"icon" : "icon.png",
 			"script" : "script.cocoascript",
-			"handler": "plugins"
+			"handler" : "plugins"
 		},
 		{
-			"name": "Donate",
-			"identifier": "donate",
-			"icon": "icon.png",
+			"name" : "Donate",
+			"identifier" : "donate",
+			"description" : "Donate to the development of Style Swapper.",
+			"icon" : "icon.png",
 			"script" : "script.cocoascript",
-			"handler": "donate"
+			"handler" : "donate"
 		}
 	],
 	"menu" : {
@@ -48,13 +58,5 @@
 			"plugins",
 			"donate"
 		]
-	},
-	"identifier" : "com.sonburn.sketchplugins.style-swapper",
-	"version" : "0.1",
-	"description" : "Swap styles from document to library.",
-	"authorEmail" : "jason.burns@synchronoss.com",
-	"name" : "Style Swapper",
-	"icon" : "icon.png",
-	"appcast" : "https://raw.githubusercontent.com/sonburn/style-swapper/master/appcast.xml",
-	"homepage" : "https://github.com/sonburn/style-swapper"
+	}
 }
