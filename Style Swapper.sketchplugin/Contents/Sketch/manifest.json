@@ -4,6 +4,7 @@
 		{
 			"name" : "Swap Styles…",
 			"identifier" : "swapStyles",
+			"icon": "icon.png",
 			"description" : "Swap styles from document to library.",
 			"script" : "script.cocoascript",
 			"handler" : "swapStyles"
@@ -11,6 +12,7 @@
 		{
 			"name" : "Swap Style of Selection…",
 			"identifier" : "swapSelection",
+			"icon": "icon.png",
 			"description" : "Swap style of selection from this document to a library.",
 			"script" : "script.cocoascript",
 			"handler" : "swapSelection"
@@ -18,18 +20,21 @@
 		{
 			"name": "Report Issue",
 			"identifier": "report",
+			"icon": "icon.png",
 			"script" : "script.cocoascript",
 			"handler": "report"
 		},
 		{
 			"name": "Other Plugins",
 			"identifier": "plugins",
+			"icon": "icon.png",
 			"script" : "script.cocoascript",
 			"handler": "plugins"
 		},
 		{
 			"name": "Donate",
 			"identifier": "donate",
+			"icon": "icon.png",
 			"script" : "script.cocoascript",
 			"handler": "donate"
 		}
